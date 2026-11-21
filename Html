@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pierukommentaattori</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --surface: #181b22;
+      --text: #f0f2f5;
+      --muted: #8b949e;
+      --accent: #3fb950;
+      --danger: #f85149;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+      text-align: center;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid #2a2f3a;
+      border-radius: 20px;
+      padding: 32px 24px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+    }
+    h1 { font-size: 1.5rem; margin-bottom: 8px; letter-spacing: -0.02em; }
+    .status { font-size: 0.9rem; color: var(--muted); margin-bottom: 24px; }
+    
+    .meter-container {
+      width: 100%;
+      height: 12px;
+      background: #0b0d10;
+      border-radius: 6px;
+      overflow: hidden;
+      margin-bottom: 24px;
+      position: relative;
+    }
+    .meter-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--accent);
+      transition: width 0.05s linear, background 0.1s;
+    }
+    .threshold-line {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: var(--danger);
+      left: 50%;
+    }
+
+    .roast-box {
+      min-height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      line-height: 1.4;
+      color: #e6edf3;
+      background: #12151a;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 24px;
+      font-style: italic;
+    }
+
+    .controls { display: flex; flex-direction: column; gap: 12px; }
+    button {
+      padding: 14px 20px;
+      border-radius: 12px;
+      border: none;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+    button:active { transform: scale(0.98); }
+    .btn-primary { background: var(--accent); color: #000; }
+    .btn-stop { background: var(--danger); color: #fff; }
+    .btn-secondary { background: #2a2f3a; color: var(--text); font-size: 0.9rem; }
+
+    .slider-group {
+      margin-top: 20px;
+      text-align: left;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .slider-group label { display: flex; justify-content: space-between; margin-bottom: 6px; }
+    input[type="range"] { width: 100%; accent-color: var(--accent); }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h1>Pierukommentaattori</h1>
+    <div id="status" class="status">Valmiustilassa</div>
+
+    <div class="meter-container">
+      <div id="meter" class="meter-fill"></div>
+      <div id="thresholdLine" class="threshold-line"></div>
+    </div>
+
+    <div id="roastBox" class="roast-box">
+      "Paina käynnistä ja anna palaa..."
+    </div>
+
+    <div class="controls">
+      <button id="toggleBtn" class="btn-primary">Käynnistä kuuntelu</button>
+      <button id="testBtn" class="btn-secondary">Testaa ääni & solvaus</button>
+    </div>
+
+    <div class="slider-group">
+      <label>
+        <span>Kynnysarvo (herkkyys)</span>
+        <span id="thresholdVal">55</span>
+      </label>
+      <input type="range" id="thresholdSlider" min="15" max="150" value="55">
+    </div>
+  </div>
+
+  <script>
+    const roasts = {
+      short: [
+        "Oliko tuo pieru vai astuitko hiiren päälle? Säälittävä yritys.",
+        "Aika ujo pihaus. Eikö suolistosta löydy enempää kunnianhimoa?",
+        "Kuulosti lähinnä tyhjenevältä ilmapallolta. Yritä edes.",
+        "Tuo oli niin varovainen, että se melkein pyysi anteeksi olemassaoloaan."
+      ],
+      medium: [
+        "No niin, nyt on taas huoneilma pilalla. Kiitos tästä taideteoksesta.",
+        "Tuon äänen perusteella suosittelen vakavasti ruokavalion tarkistamista.",
+        "Hyvä yritys, mutta naapurit eivät vielä soittaneet palokuntaa.",
+        "Klassinen suoritus. Hajuhaittoja odotellessa."
+      ],
+      heavy: [
+        "Varoitus! Myrkyllinen kaasupurkaus havaittu. Evakuoikaa huone välittömästi!",
+        "Tuo ei ollut enää pieru, tuo oli suoliston hätähuuto. Onko housut vielä ehjät?",
+        "Mahtava bassoraita! Sääli vain, että se tuli sinun takapuolestasi.",
+        "Herra varjele. Tuo tärinä tuntui varmaan naapurikunnassa asti."
+      ]
+    };
+
+    let audioCtx, analyser, micStream, dataArray;
+    let isListening = false;
+    let animationId;
+
+    // Tunnistuksen tilamuuttujat
+    let soundStartTime = 0;
+    let peakEnergy = 0;
+    let isSoundActive = false;
+    let lastRoastTime = 0;
+    const COOLDOWN_MS = 4500; // Estää oman puheen tunnistamisen
+
+    const toggleBtn = document.getElementById('toggleBtn');
+    const testBtn = document.getElementById('testBtn');
+    const statusEl = document.getElementById('status');
+    const meterEl = document.getElementById('meter');
+    const roastBox = document.getElementById('roastBox');
+    const slider = document.getElementById('thresholdSlider');
+    const thresholdVal = document.getElementById('thresholdVal');
+    const thresholdLine = document.getElementById('thresholdLine');
+
+    function updateThresholdUI() {
+      const val = parseInt(slider.value, 10);
+      thresholdVal.textContent = val;
+      // Skaalataan visuaalinen viiva (max 160)
+      thresholdLine.style.left = Math.min((val / 160) * 100, 100) + '%';
+    }
+    slider.addEventListener('input', updateThresholdUI);
+    updateThresholdUI();
+
+    function speakRoast(category) {
+      const list = roasts[category];
+      const text = list[Math.floor(Math.random() * list.length)];
+      roastBox.textContent = `"${text}"`;
+
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'fi-FI';
+      utterance.rate = 1.05;
+      utterance.pitch = 0.95;
+
+      // Etsitään suomenkielinen ääni, jos saatavilla
+      const voices = window.speechSynthesis.getVoices();
+      const fiVoice = voices.find(v => v.lang.startsWith('fi'));
+      if (fiVoice) utterance.voice = fiVoice;
+
+      lastRoastTime = Date.now();
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function analyzeAudio() {
+      if (!isListening) return;
+      animationId = requestAnimationFrame(analyzeAudio);
+
+      // Älä kuuntele, kun puhesyntetisaattori puhuu tai cooldown on päällä
+      if (window.speechSynthesis.speaking || Date.now() - lastRoastTime < COOLDOWN_MS) {
+        meterEl.style.width = '0%';
+        isSoundActive = false;
+        return;
+      }
+
+      analyser.getByteFrequencyData(dataArray);
+
+      // Lasketaan energia matalilta taajuuksilta (n. 60 Hz - 450 Hz)
+      let lowSum = 0;
+      const lowBins = 8;
+      for (let i = 1; i <= lowBins; i++) {
+        lowSum += dataArray[i];
+      }
+      const avgLow = lowSum / lowBins;
+      const threshold = parseInt(slider.value, 10);
+
+      // Päivitetään mittari
+      const pct = Math.min((avgLow / 160) * 100, 100);
+      meterEl.style.width = pct + '%';
+      meterEl.style.background = avgLow > threshold ? 'var(--danger)' : 'var(--accent)';
+
+      const now = Date.now();
+
+      if (avgLow > threshold) {
+        if (!isSoundActive) {
+          isSoundActive = true;
+          soundStartTime = now;
+          peakEnergy = avgLow;
+        } else {
+          if (avgLow > peakEnergy) peakEnergy = avgLow;
+        }
+      } else if (isSoundActive) {
+        // Ääni loppui -> arvioidaan kesto
+        const duration = now - soundStartTime;
+        isSoundActive = false;
+
+        // Suodatetaan pois alle 120 ms napsahdukset
+        if (duration >= 120) {
+          if (duration > 700 || peakEnergy > threshold * 1.8) {
+            speakRoast('heavy');
+          } else if (duration > 300) {
+            speakRoast('medium');
+          } else {
+            speakRoast('short');
+          }
+        }
+      }
+    }
+
+    async function startListening() {
+      try {
+        // Herätetään puhesyntetisaattori iOS/Android-selaimia varten
+        window.speechSynthesis.getVoices();
+
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioCtx.createMediaStreamSource(micStream);
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+
+        dataArray = new Uint8Array(analyser.frequencyBinCount);
+        isListening = true;
+
+        toggleBtn.textContent = 'Pysäytä';
+        toggleBtn.className = 'btn-stop';
+        statusEl.textContent = 'Kuunnellaan matalia taajuuksia...';
+        analyzeAudio();
+      } catch (err) {
+        statusEl.textContent = 'Mikrofonin käyttö estetty tai vaatii HTTPS-yhteyden.';
+        console.error(err);
+      }
+    }
+
+    function stopListening() {
+      isListening = false;
+      cancelAnimationFrame(animationId);
+      if (micStream) micStream.getTracks().forEach(t => t.stop());
+      if (audioCtx) audioCtx.close();
+
+      meterEl.style.width = '0%';
+      toggleBtn.textContent = 'Käynnistä kuuntelu';
+      toggleBtn.className = 'btn-primary';
+      statusEl.textContent = 'Pysäytetty';
+    }
+
+    toggleBtn.addEventListener('click', () => {
+      if (isListening) stopListening();
+      else startListening();
+    });
+
+    testBtn.addEventListener('click', () => {
+      const cats = ['short', 'medium', 'heavy'];
+      speakRoast(cats[Math.floor(Math.random() * cats.length)]);
+    });
+  </script>
+</body>
+</html>
