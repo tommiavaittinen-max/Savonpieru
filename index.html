@@ -56,4 +56,159 @@
     }
     .threshold-line {
       position: absolute;
-      top: 0
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: var(--danger);
+      left: 40%;
+    }
+
+    .stats-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-bottom: 20px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .roast-box {
+      min-height: 88px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.05rem;
+      line-height: 1.4;
+      color: #e6edf3;
+      background: #12151a;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 20px;
+      font-style: italic;
+    }
+
+    .controls { display: flex; flex-direction: column; gap: 10px; }
+    button {
+      padding: 14px 20px;
+      border-radius: 12px;
+      border: none;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+    button:active { transform: scale(0.98); }
+    .btn-primary { background: var(--accent); color: #000; }
+    .btn-stop { background: var(--danger); color: #fff; }
+    .btn-secondary { background: #2a2f3a; color: var(--text); font-size: 0.9rem; }
+
+    .slider-group {
+      margin-top: 16px;
+      text-align: left;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .slider-group label { display: flex; justify-content: space-between; margin-bottom: 4px; }
+    input[type="range"] { width: 100%; accent-color: var(--accent); }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h1>Eemin Pierukommentaattori</h1>
+    <div id="status" class="status">Valmiustilassa</div>
+
+    <div class="meter-container">
+      <div id="meter" class="meter-fill"></div>
+      <div id="thresholdLine" class="threshold-line"></div>
+    </div>
+
+    <div class="stats-row">
+      <span>Tausta: <strong id="noiseStat">0</strong></span>
+      <span>Suhde: <strong id="ratioStat">0.0</strong>x</span>
+      <span>Eemin osumat: <strong id="countStat">0</strong></span>
+    </div>
+
+    <div id="roastBox" class="roast-box">
+      "Paina käynnistä ja anna palaa, Eemi..."
+    </div>
+
+    <div class="controls">
+      <button id="toggleBtn" class="btn-primary">Käynnistä kuuntelu</button>
+      <button id="testBtn" class="btn-secondary">Testaa ääni & solvaus</button>
+    </div>
+
+    <div class="slider-group">
+      <label>
+        <span>Herkkyys (ylitys taustamelusta)</span>
+        <span id="thresholdVal">35</span>
+      </label>
+      <input type="range" id="thresholdSlider" min="10" max="100" value="35">
+    </div>
+
+    <div class="slider-group">
+      <label>
+        <span>Puheensuodatus (Basso/Diskantti-suhde)</span>
+        <span id="ratioVal">2.0</span>
+      </label>
+      <input type="range" id="ratioSlider" min="1.2" max="4.0" step="0.1" value="2.0">
+    </div>
+  </div>
+
+  <script>
+    const roasts = {
+      short: [
+        "Eemi, oliko tuo pieru vai astuitko hiiren päälle? Säälittävä yritys.",
+        "Aika ujo pihaus, Eemi. Eikö suolistosta löydy enempää kunnianhimoa?",
+        "Tuo oli niin varovainen, Eemi, että se melkein pyysi anteeksi olemassaoloaan.",
+        "Yritä edes, Eemi. Tuo ei riitä edes alkulämmittelyksi."
+      ],
+      squeaker: [
+        "Eemi, tuo kuulosti tyhjenevältä ilmapallolta. Onko vähän kireä tunnelma?",
+        "Vinkaisi kuin vanha saranatappi. Suosittelen öljyämistä, Eemi.",
+        "Korkea ja kireä. Eemi päästi selvästi paineella läpi.",
+        "Mitä ihmettä, Eemi? Nielaisitko vinkulelun?"
+      ],
+      medium: [
+        "No niin Eemi, nyt on taas huoneilma pilalla. Kiitos tästä taideteoksesta.",
+        "Tuon äänen perusteella suosittelen Eemille vakavasti ruokavalion tarkistamista.",
+        "Hyvä yritys, Eemi, mutta naapurit eivät vielä soittaneet palokuntaa.",
+        "Klassinen suoritus Eemiltä. Hajuhaittoja odotellessa."
+      ],
+      heavy: [
+        "Varoitus! Eemiltä havaittu myrkyllinen kaasupurkaus. Evakuoikaa huone välittömästi!",
+        "Tuo ei ollut enää pieru, Eemi, tuo oli suoliston hätähuuto. Onko housut vielä ehjät?",
+        "Mahtava bassoraita! Sääli vain, että se tuli Eemin takapuolesta.",
+        "Herra varjele, Eemi. Tuo tärinä tuntui varmaan naapurikunnassa asti."
+      ]
+    };
+
+    let audioCtx, analyser, micStream, dataArray;
+    let isListening = false;
+    let animationId;
+
+    // Tunnistuksen tilamuuttujat
+    let noiseFloor = 15;
+    let soundStartTime = 0;
+    let peakEnergy = 0;
+    let lowSumEvent = 0;
+    let midSumEvent = 0;
+    let frameCountEvent = 0;
+    let isSoundActive = false;
+    let lastRoastTime = 0;
+    let fartCount = 0;
+    const COOLDOWN_MS = 4500;
+
+    // UI-elementit
+    const toggleBtn = document.getElementById('toggleBtn');
+    const testBtn = document.getElementById('testBtn');
+    const statusEl = document.getElementById('status');
+    const meterEl = document.getElementById('meter');
+    const roastBox = document.getElementById('roastBox');
+    const slider = document.getElementById('thresholdSlider');
+    const thresholdVal = document.getElementById('thresholdVal');
+    const thresholdLine = document.getElementById('thresholdLine');
+    const ratioSlider = document.getElementById('ratioSlider');
+    const ratioVal = document.getElementById('ratioVal');
+    const noiseStat = document.getElementById('noiseStat');
+    const ratioStat = document.getElementById
