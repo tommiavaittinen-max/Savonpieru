@@ -3,16 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Eemin Pierukommentaattori</title>
+  <title>Lauluvalmentaja</title>
   <style>
     :root {
-      --bg: #0f1115;
-      --surface: #181b22;
-      --text: #f0f2f5;
-      --muted: #8b949e;
-      --accent: #3fb950;
-      --warn: #d29922;
-      --danger: #f85149;
+      --bg: #0c0e12;
+      --surface: #151921;
+      --surface-2: #1d222d;
+      --border: #282f3d;
+      --text: #f3f5f8;
+      --muted: #8a94a6;
+      --accent: #38bdf8;
+      --good: #34d399;
+      --warn: #fbbf24;
+      --bad: #f87171;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -20,381 +23,565 @@
       background: var(--bg);
       color: var(--text);
       display: flex;
-      flex-direction: column;
-      align-items: center;
       justify-content: center;
       min-height: 100vh;
-      padding: 20px;
-      text-align: center;
+      padding: 16px;
+      line-height: 1.5;
     }
+    .app {
+      width: 100%;
+      max-width: 460px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    header {
+      text-align: center;
+      padding: 8px 0 4px;
+    }
+    header h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    header p {
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    .tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 4px;
+      gap: 4px;
+    }
+    .tab-btn {
+      background: transparent;
+      color: var(--muted);
+      border: none;
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .tab-btn.active {
+      background: var(--surface-2);
+      color: var(--text);
+    }
+
     .card {
       background: var(--surface);
-      border: 1px solid #2a2f3a;
-      border-radius: 20px;
-      padding: 28px 22px;
-      width: 100%;
-      max-width: 420px;
-      box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 22px 20px;
     }
-    h1 { font-size: 1.5rem; margin-bottom: 6px; letter-spacing: -0.02em; }
-    .status { font-size: 0.85rem; color: var(--muted); margin-bottom: 20px; }
 
-    .meter-container {
-      width: 100%;
-      height: 14px;
-      background: #0b0d10;
-      border-radius: 7px;
-      overflow: hidden;
-      margin-bottom: 10px;
+    /* Live Tuner */
+    .note-display {
+      text-align: center;
+      margin-bottom: 18px;
+    }
+    .note-name {
+      font-size: 4rem;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      line-height: 1.1;
+      font-variant-numeric: tabular-nums;
+      color: var(--text);
+    }
+    .note-meta {
+      font-size: 0.9rem;
+      color: var(--muted);
+      margin-top: 4px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .tuner-bar-wrap {
       position: relative;
+      height: 28px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      margin: 16px 0 8px;
+      overflow: hidden;
     }
-    .meter-fill {
-      height: 100%;
-      width: 0%;
-      background: var(--accent);
-      transition: width 0.05s linear, background 0.1s;
-    }
-    .threshold-line {
+    .tuner-center {
       position: absolute;
+      left: 50%;
       top: 0;
       bottom: 0;
       width: 2px;
-      background: var(--danger);
-      left: 40%;
+      background: var(--good);
+      transform: translateX(-50%);
+      z-index: 2;
     }
-
-    .stats-row {
+    .tuner-zone {
+      position: absolute;
+      left: 35%;
+      width: 30%;
+      top: 0;
+      bottom: 0;
+      background: rgba(52, 211, 153, 0.12);
+    }
+    .tuner-needle {
+      position: absolute;
+      top: 3px;
+      bottom: 3px;
+      width: 10px;
+      border-radius: 5px;
+      background: var(--accent);
+      left: 50%;
+      transform: translateX(-50%);
+      transition: left 0.06s linear, background 0.15s;
+      z-index: 3;
+    }
+    .tuner-labels {
       display: flex;
       justify-content: space-between;
       font-size: 0.75rem;
       color: var(--muted);
-      margin-bottom: 20px;
+      margin-bottom: 18px;
+    }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+    .metric-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      text-align: center;
+    }
+    .metric-label {
+      font-size: 0.72rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .metric-val {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-top: 2px;
       font-variant-numeric: tabular-nums;
     }
 
-    .roast-box {
-      min-height: 88px;
+    .tone-row {
       display: flex;
-      align-items: center;
+      gap: 6px;
       justify-content: center;
-      font-size: 1.05rem;
-      line-height: 1.4;
-      color: #e6edf3;
-      background: #12151a;
-      border-radius: 12px;
-      padding: 16px;
-      margin-bottom: 20px;
-      font-style: italic;
+      flex-wrap: wrap;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
     }
+    .tone-label {
+      width: 100%;
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .tone-btn {
+      background: var(--surface-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .tone-btn:active { background: var(--accent); color: #000; }
 
-    .controls { display: flex; flex-direction: column; gap: 10px; }
-    button {
-      padding: 14px 20px;
+    /* Buttons */
+    .btn {
+      width: 100%;
+      padding: 14px;
       border-radius: 12px;
       border: none;
       font-size: 1rem;
       font-weight: 600;
       cursor: pointer;
-      transition: opacity 0.2s, transform 0.1s;
+      transition: transform 0.1s, opacity 0.2s;
     }
-    button:active { transform: scale(0.98); }
-    .btn-primary { background: var(--accent); color: #000; }
-    .btn-stop { background: var(--danger); color: #fff; }
-    .btn-secondary { background: #2a2f3a; color: var(--text); font-size: 0.9rem; }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary { background: var(--accent); color: #05131e; }
+    .btn-stop { background: var(--bad); color: #fff; }
+    .btn-good { background: var(--good); color: #042216; }
 
-    .slider-group {
-      margin-top: 16px;
-      text-align: left;
-      font-size: 0.8rem;
-      color: var(--muted);
+    .error-msg {
+      margin-top: 12px;
+      font-size: 0.82rem;
+      color: var(--bad);
+      text-align: center;
+      display: none;
     }
-    .slider-group label { display: flex; justify-content: space-between; margin-bottom: 4px; }
-    input[type="range"] { width: 100%; accent-color: var(--accent); }
+
+    /* Calibration & Report */
+    .hidden { display: none !important; }
+    .calib-guide {
+      font-size: 0.9rem;
+      color: var(--muted);
+      margin-bottom: 16px;
+      text-align: center;
+    }
+    .progress-wrap {
+      height: 8px;
+      background: var(--bg);
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 14px 0;
+    }
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--accent);
+      transition: width 0.1s linear;
+    }
+    .calib-timer {
+      text-align: center;
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .report-section {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+    .report-section h3 {
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+    .report-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 0.9rem;
+    }
+    .report-list li {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      padding: 10px 12px;
+      border-radius: 10px;
+    }
+    .song-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .song-artist { font-size: 0.78rem; color: var(--muted); display: block; }
+    .badge {
+      font-size: 0.72rem;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: var(--surface-2);
+      color: var(--accent);
+      white-space: nowrap;
+    }
   </style>
 </head>
 <body>
+  <div class="app">
+    <header>
+      <h1>Lauluvalmentaja</h1>
+      <p>Objektiivinen vireys-, vakaus- ja äänialamittari</p>
+    </header>
 
-  <div class="card">
-    <h1>Eemin Pierukommentaattori</h1>
-    <div id="status" class="status">Valmiustilassa</div>
-
-    <div class="meter-container">
-      <div id="meter" class="meter-fill"></div>
-      <div id="thresholdLine" class="threshold-line"></div>
+    <div class="tabs">
+      <button class="tab-btn active" id="tabLive">Live-harjoittelu</button>
+      <button class="tab-btn" id="tabCalib">Äänianalyysi</button>
     </div>
 
-    <div class="stats-row">
-      <span>Tausta: <strong id="noiseStat">0</strong></span>
-      <span>Suhde: <strong id="ratioStat">0.0</strong>x</span>
-      <span>Eemin osumat: <strong id="countStat">0</strong></span>
+    <!-- LIVE-HARJOITTELU -->
+    <div class="card" id="viewLive">
+      <div class="note-display">
+        <div class="note-name" id="noteName">—</div>
+        <div class="note-meta" id="noteMeta">Paina käynnistä ja laula ääni</div>
+      </div>
+
+      <div class="tuner-bar-wrap">
+        <div class="tuner-zone"></div>
+        <div class="tuner-center"></div>
+        <div class="tuner-needle" id="tunerNeedle"></div>
+      </div>
+      <div class="tuner-labels">
+        <span>-50 (Matala)</span>
+        <span>Puhdas (0)</span>
+        <span>+50 (Korkea)</span>
+      </div>
+
+      <div class="metrics-grid">
+        <div class="metric-box">
+          <div class="metric-label">Vireys</div>
+          <div class="metric-val" id="liveCents">—</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">Vakaus</div>
+          <div class="metric-val" id="liveStability">—</div>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="micBtn">Käynnistä mikrofoni</button>
+      <div class="error-msg" id="errorMsg"></div>
+
+      <div class="tone-row">
+        <div class="tone-label">Referenssiäänet (kuuntele ja toista perässä):</div>
+        <button class="tone-btn" data-freq="146.83">D3</button>
+        <button class="tone-btn" data-freq="196.00">G3</button>
+        <button class="tone-btn" data-freq="220.00">A3</button>
+        <button class="tone-btn" data-freq="261.63">C4</button>
+        <button class="tone-btn" data-freq="329.63">E4</button>
+        <button class="tone-btn" data-freq="392.00">G4</button>
+      </div>
     </div>
 
-    <div id="roastBox" class="roast-box">
-      "Paina käynnistä ja anna palaa, Eemi..."
-    </div>
+    <!-- ÄÄNIANALYYSI & KALIBROINTI -->
+    <div class="card hidden" id="viewCalib">
+      <div id="calibIntro">
+        <p class="calib-guide">
+          <strong>15 sekunnin äänikartoitus:</strong><br>
+          1. Laula rennosti matalimmasta mukavasta äänestäsi korkeimpaan.<br>
+          2. Pidä lopuksi yksi tasainen "aaa"-ääni 3 sekunnin ajan.
+        </p>
+        <button class="btn btn-good" id="startCalibBtn">Aloita 15 s kalibrointi</button>
+      </div>
 
-    <div class="controls">
-      <button id="toggleBtn" class="btn-primary">Käynnistä kuuntelu</button>
-      <button id="testBtn" class="btn-secondary">Testaa ääni & solvaus</button>
-    </div>
+      <div id="calibActive" class="hidden">
+        <div class="calib-timer" id="calibTimer">15.0 s</div>
+        <div class="note-name" id="calibNote" style="font-size: 2.8rem; text-align:center;">—</div>
+        <div class="progress-wrap">
+          <div class="progress-fill" id="calibProgress"></div>
+        </div>
+        <p class="calib-guide" id="calibHint">Laula rauhallisesti ylös ja alas...</p>
+      </div>
 
-    <div class="slider-group">
-      <label>
-        <span>Herkkyys (ylitys taustamelusta)</span>
-        <span id="thresholdVal">35</span>
-      </label>
-      <input type="range" id="thresholdSlider" min="10" max="100" value="35">
-    </div>
+      <div id="calibReport" class="hidden">
+        <div class="metrics-grid">
+          <div class="metric-box">
+            <div class="metric-label">Äänityyppi</div>
+            <div class="metric-val" id="repType" style="color:var(--accent)">—</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">Ääniala</div>
+            <div class="metric-val" id="repRange">—</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">Vireystarkkuus</div>
+            <div class="metric-val" id="repAcc">—</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">Äänen vakaus</div>
+            <div class="metric-val" id="repStab">—</div>
+          </div>
+        </div>
 
-    <div class="slider-group">
-      <label>
-        <span>Puheensuodatus (Basso/Diskantti-suhde)</span>
-        <span id="ratioVal">2.0</span>
-      </label>
-      <input type="range" id="ratioSlider" min="1.2" max="4.0" step="0.1" value="2.0">
+        <div class="report-section">
+          <h3>Vahvuudet</h3>
+          <ul class="report-list" id="repStrengths"></ul>
+        </div>
+
+        <div class="report-section">
+          <h3>Seuraavat kehityskohteet</h3>
+          <ul class="report-list" id="repWeaknesses"></ul>
+        </div>
+
+        <div class="report-section">
+          <h3>Äänellesi sopivia kappaleita</h3>
+          <ul class="report-list" id="repSongs"></ul>
+        </div>
+
+        <button class="btn btn-primary" id="reCalibBtn" style="margin-top: 18px;">Tee uusi kalibrointi</button>
+      </div>
     </div>
   </div>
 
   <script>
-    const roasts = {
-      short: [
-        "Eemi, oliko tuo pieru vai astuitko hiiren päälle? Säälittävä yritys.",
-        "Aika ujo pihaus, Eemi. Eikö suolistosta löydy enempää kunnianhimoa?",
-        "Tuo oli niin varovainen, Eemi, että se melkein pyysi anteeksi olemassaoloaan.",
-        "Yritä edes, Eemi. Tuo ei riitä edes alkulämmittelyksi."
+    const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+
+    // Kappaletietokanta äänityypeittäin
+    const SONG_DB = {
+      "Basso": [
+        { title: "Hurt", artist: "Johnny Cash", key: "E2–E3" },
+        { title: "Kaksi puuta", artist: "Juha Tapio (matala)", key: "G2–G3" },
+        { title: "Can't Help Falling in Love", artist: "Elvis Presley", key: "F#2–A3" }
       ],
-      squeaker: [
-        "Eemi, tuo kuulosti tyhjenevältä ilmapallolta. Onko vähän kireä tunnelma?",
-        "Vinkaisi kuin vanha saranatappi. Suosittelen öljyämistä, Eemi.",
-        "Korkea ja kireä. Eemi päästi selvästi paineella läpi.",
-        "Mitä ihmettä, Eemi? Nielaisitko vinkulelun?"
+      "Baritoni": [
+        { title: "Syksyn sävel", artist: "Juice Leskinen", key: "A2–D4" },
+        { title: "Ohikiitävää", artist: "Juha Tapio", key: "B2–E4" },
+        { title: "All of Me", artist: "John Legend", key: "G2–Eb4" }
       ],
-      medium: [
-        "No niin Eemi, nyt on taas huoneilma pilalla. Kiitos tästä taideteoksesta.",
-        "Tuon äänen perusteella suosittelen Eemille vakavasti ruokavalion tarkistamista.",
-        "Hyvä yritys, Eemi, mutta naapurit eivät vielä soittaneet palokuntaa.",
-        "Klassinen suoritus Eemiltä. Hajuhaittoja odotellessa."
+      "Tenori": [
+        { title: "Vuonna '85", artist: "Eppu Normaali", key: "C3–G4" },
+        { title: "Fix You", artist: "Coldplay", key: "Eb3–G4" },
+        { title: "Tinakenkätyttö", artist: "Kaija Koo (miehen oktaavi)", key: "C3–F4" }
       ],
-      heavy: [
-        "Varoitus! Eemiltä havaittu myrkyllinen kaasupurkaus. Evakuoikaa huone välittömästi!",
-        "Tuo ei ollut enää pieru, Eemi, tuo oli suoliston hätähuuto. Onko housut vielä ehjät?",
-        "Mahtava bassoraita! Sääli vain, että se tuli Eemin takapuolesta.",
-        "Herra varjele, Eemi. Tuo tärinä tuntui varmaan naapurikunnassa asti."
+      "Altto": [
+        { title: "Someone Like You", artist: "Adele", key: "F#3–C5" },
+        { title: "Kuka keksi rakkauden", artist: "Kaija Koo", key: "G3–Bb4" },
+        { title: "Hei rakas", artist: "Behm", key: "F3–C5" }
+      ],
+      "Mezzosopraano": [
+        { title: "Missä muruseni on", artist: "Jenni Vartiainen", key: "A3–D5" },
+        { title: "Shallow", artist: "Lady Gaga", key: "G3–D5" },
+        { title: "Maailma on tehty meitä varten", artist: "Haloo Helsinki!", key: "A3–E5" }
+      ],
+      "Sopraano": [
+        { title: "My Heart Will Go On", artist: "Celine Dion", key: "B3–F#5" },
+        { title: "Ihmisten edessä", artist: "Jenni Vartiainen", key: "C4–F5" },
+        { title: "Hallelujah", artist: "Alexandra Burke", key: "C4–G5" }
       ]
     };
 
-    let audioCtx, analyser, micStream, dataArray;
+    let audioCtx = null;
+    let analyser = null;
+    let micStream = null;
+    let timeBuffer = null;
     let isListening = false;
-    let animationId;
+    let rafId = null;
 
-    // Tunnistuksen tilamuuttujat
-    let noiseFloor = 15;
-    let soundStartTime = 0;
-    let peakEnergy = 0;
-    let lowSumEvent = 0;
-    let midSumEvent = 0;
-    let frameCountEvent = 0;
-    let isSoundActive = false;
-    let lastRoastTime = 0;
-    let fartCount = 0;
-    const COOLDOWN_MS = 4500;
+    // Live-seuranta
+    let recentCents = [];
+
+    // Kalibrointi
+    let isCalibrating = false;
+    let calibStartTime = 0;
+    const CALIB_DURATION = 15000;
+    let calibSamples = []; // { midi, cents, freq }
 
     // UI-elementit
-    const toggleBtn = document.getElementById('toggleBtn');
-    const testBtn = document.getElementById('testBtn');
-    const statusEl = document.getElementById('status');
-    const meterEl = document.getElementById('meter');
-    const roastBox = document.getElementById('roastBox');
-    const slider = document.getElementById('thresholdSlider');
-    const thresholdVal = document.getElementById('thresholdVal');
-    const thresholdLine = document.getElementById('thresholdLine');
-    const ratioSlider = document.getElementById('ratioSlider');
-    const ratioVal = document.getElementById('ratioVal');
-    const noiseStat = document.getElementById('noiseStat');
-    const ratioStat = document.getElementById('ratioStat');
-    const countStat = document.getElementById('countStat');
+    const tabLive = document.getElementById('tabLive');
+    const tabCalib = document.getElementById('tabCalib');
+    const viewLive = document.getElementById('viewLive');
+    const viewCalib = document.getElementById('viewCalib');
+    const micBtn = document.getElementById('micBtn');
+    const errorMsg = document.getElementById('errorMsg');
 
-    function updateUI() {
-      const val = parseInt(slider.value, 10);
-      thresholdVal.textContent = val;
-      ratioVal.textContent = parseFloat(ratioSlider.value).toFixed(1);
-    }
-    slider.addEventListener('input', updateUI);
-    ratioSlider.addEventListener('input', updateUI);
-    updateUI();
+    const noteNameEl = document.getElementById('noteName');
+    const noteMetaEl = document.getElementById('noteMeta');
+    const tunerNeedle = document.getElementById('tunerNeedle');
+    const liveCentsEl = document.getElementById('liveCents');
+    const liveStabilityEl = document.getElementById('liveStability');
 
-    function getBandAverage(data, binHz, minHz, maxHz) {
-      const startBin = Math.max(1, Math.floor(minHz / binHz));
-      const endBin = Math.min(data.length - 1, Math.ceil(maxHz / binHz));
-      let sum = 0;
-      let count = 0;
-      for (let i = startBin; i <= endBin; i++) {
-        sum += data[i];
-        count++;
-      }
-      return count > 0 ? sum / count : 0;
-    }
+    const calibIntro = document.getElementById('calibIntro');
+    const calibActive = document.getElementById('calibActive');
+    const calibReport = document.getElementById('calibReport');
+    const startCalibBtn = document.getElementById('startCalibBtn');
+    const reCalibBtn = document.getElementById('reCalibBtn');
+    const calibTimerEl = document.getElementById('calibTimer');
+    const calibNoteEl = document.getElementById('calibNote');
+    const calibProgress = document.getElementById('calibProgress');
+    const calibHint = document.getElementById('calibHint');
 
-    function speakRoast(category) {
-      const list = roasts[category];
-      const text = list[Math.floor(Math.random() * list.length)];
-      roastBox.textContent = `"${text}"`;
-
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'fi-FI';
-      utterance.rate = 1.05;
-      utterance.pitch = 0.95;
-
-      const voices = window.speechSynthesis.getVoices();
-      const fiVoice = voices.find(v => v.lang.startsWith('fi'));
-      if (fiVoice) utterance.voice = fiVoice;
-
-      lastRoastTime = Date.now();
-      window.speechSynthesis.speak(utterance);
-    }
-
-    function analyzeAudio() {
-      if (!isListening) return;
-      animationId = requestAnimationFrame(analyzeAudio);
-
-      if (window.speechSynthesis.speaking || Date.now() - lastRoastTime < COOLDOWN_MS) {
-        meterEl.style.width = '0%';
-        isSoundActive = false;
-        return;
-      }
-
-      analyser.getByteFrequencyData(dataArray);
-      const binHz = audioCtx.sampleRate / analyser.fftSize;
-
-      // Taajuuskaistat
-      const lowEnergy = getBandAverage(dataArray, binHz, 60, 320);    // Basso / jyrinä
-      const midEnergy = getBandAverage(dataArray, binHz, 320, 900);   // Pärinä / vinkaisu
-      const highEnergy = getBandAverage(dataArray, binHz, 1500, 4500); // Puhe / kolaukset
-
-      const fartBand = (lowEnergy * 0.65) + (midEnergy * 0.35);
-      const ratio = fartBand / (highEnergy + 6);
-
-      const sensitivity = parseInt(slider.value, 10);
-      const minRatio = parseFloat(ratioSlider.value);
-      const dynamicThreshold = noiseFloor + sensitivity;
-
-      // Päivitetään taustamelun taso hitaasti, kun ääni ei ole aktiivinen
-      if (!isSoundActive && fartBand < dynamicThreshold) {
-        noiseFloor = noiseFloor * 0.97 + fartBand * 0.03;
-      }
-
-      // Visuaalinen mittari ja statistiikka
-      const maxScale = Math.max(150, dynamicThreshold * 1.5);
-      meterEl.style.width = Math.min((fartBand / maxScale) * 100, 100) + '%';
-      thresholdLine.style.left = Math.min((dynamicThreshold / maxScale) * 100, 100) + '%';
-
-      const isFartLike = fartBand > dynamicThreshold && ratio >= minRatio;
-      meterEl.style.background = isFartLike
-        ? 'var(--danger)'
-        : (fartBand > dynamicThreshold ? 'var(--warn)' : 'var(--accent)');
-
-      noiseStat.textContent = Math.round(noiseFloor);
-      ratioStat.textContent = ratio.toFixed(1);
-
-      const now = Date.now();
-
-      if (isFartLike) {
-        if (!isSoundActive) {
-          isSoundActive = true;
-          soundStartTime = now;
-          peakEnergy = fartBand;
-          lowSumEvent = lowEnergy;
-          midSumEvent = midEnergy;
-          frameCountEvent = 1;
-        } else {
-          if (fartBand > peakEnergy) peakEnergy = fartBand;
-          lowSumEvent += lowEnergy;
-          midSumEvent += midEnergy;
-          frameCountEvent++;
-        }
-      } else if (isSoundActive) {
-        const duration = now - soundStartTime;
-        isSoundActive = false;
-
-        // Suodatetaan pois lyhyet alle 140 ms napsahdukset
-        if (duration >= 140) {
-          fartCount++;
-          countStat.textContent = fartCount;
-
-          const avgLow = lowSumEvent / frameCountEvent;
-          const avgMid = midSumEvent / frameCountEvent;
-
-          if (duration > 700 || peakEnergy > dynamicThreshold * 1.7) {
-            speakRoast('heavy');
-          } else if (avgMid > avgLow * 1.15) {
-            speakRoast('squeaker');
-          } else if (duration > 320) {
-            speakRoast('medium');
-          } else {
-            speakRoast('short');
-          }
-        }
-      }
-    }
-
-    async function startListening() {
-      try {
-        window.speechSynthesis.getVoices();
-
-        // Raaka mikrofoniääni: melunvaimennus pois päältä!
-        micStream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl: false
-          }
-        });
-
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioCtx.state === 'suspended') await audioCtx.resume();
-
-        const source = audioCtx.createMediaStreamSource(micStream);
-        analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 2048;
-        analyser.smoothingTimeConstant = 0.5;
-        source.connect(analyser);
-
-        dataArray = new Uint8Array(analyser.frequencyBinCount);
-        noiseFloor = 15;
-        isListening = true;
-
-        toggleBtn.textContent = 'Pysäytä';
-        toggleBtn.className = 'btn-stop';
-        statusEl.textContent = 'Kuunnellaan Eemiä (puheensuodatus päällä)...';
-        analyzeAudio();
-      } catch (err) {
-        statusEl.textContent = 'Mikrofonin käyttö estetty tai vaatii HTTPS-yhteyden.';
-        console.error(err);
-      }
-    }
-
-    function stopListening() {
-      isListening = false;
-      cancelAnimationFrame(animationId);
-      if (micStream) micStream.getTracks().forEach(t => t.stop());
-      if (audioCtx) audioCtx.close();
-
-      meterEl.style.width = '0%';
-      toggleBtn.textContent = 'Käynnistä kuuntelu';
-      toggleBtn.className = 'btn-primary';
-      statusEl.textContent = 'Pysäytetty';
-    }
-
-    toggleBtn.addEventListener('click', () => {
-      if (isListening) stopListening();
-      else startListening();
+    // Välilehdet
+    tabLive.addEventListener('click', () => {
+      tabLive.classList.add('active');
+      tabCalib.classList.remove('active');
+      viewLive.classList.remove('hidden');
+      viewCalib.classList.add('hidden');
+    });
+    tabCalib.addEventListener('click', () => {
+      tabCalib.classList.add('active');
+      tabLive.classList.remove('active');
+      viewCalib.classList.remove('hidden');
+      viewLive.classList.add('hidden');
     });
 
-    testBtn.addEventListener('click', () => {
-      const cats = ['short', 'squeaker', 'medium', 'heavy'];
-      speakRoast(cats[Math.floor(Math.random() * cats.length)]);
+    // Referenssiäänen soitto
+    document.querySelectorAll('.tone-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const freq = parseFloat(btn.dataset.freq);
+        playReferenceTone(freq);
+      });
     });
-  </script>
-</body>
-</html>
+
+    function playReferenceTone(freq) {
+      const ctx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      if (ctx.state === 'suspended') ctx.resume();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, ctx.currentTime);
+      gain.gain.setValueAtTime(0.001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.4);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 1.45);
+    }
+
+    // Autokorrelaatio-pohjainen sävelkorkeuden tunnistus
+    function autoCorrelate(buf, sampleRate) {
+      const SIZE = buf.length;
+      let rms = 0;
+      for (let i = 0; i < SIZE; i++) rms += buf[i] * buf[i];
+      rms = Math.sqrt(rms / SIZE);
+      if (rms < 0.015) return -1; // Liian hiljainen
+
+      let r1 = 0, r2 = SIZE - 1, thres = 0.2;
+      for (let i = 0; i < SIZE / 2; i++) {
+        if (Math.abs(buf[i]) < thres) { r1 = i; break; }
+      }
+      for (let i = 1; i < SIZE / 2; i++) {
+        if (Math.abs(buf[SIZE - i]) < thres) { r2 = SIZE - i; break; }
+      }
+
+      const trimmed = buf.slice(r1, r2);
+      const len = trimmed.length;
+      const c = new Array(len).fill(0);
+      for (let i = 0; i < len; i++) {
+        for (let j = 0; j < len - i; j++) {
+          c[i] += trimmed[j] * trimmed[j + i];
+        }
+      }
+
+      let d = 0;
+      while (c[d] > c[d + 1]) d++;
+      let maxval = -1, maxpos = -1;
+      for (let i = d; i < len; i++) {
+        if (c[i] > maxval) { maxval = c[i]; maxpos = i; }
+      }
+      let T0 = maxpos;
+      if (T0 <= 0) return -1;
+
+      // Parabolinen interpolaatio tarkkuuden parantamiseksi
+      const x1 = c[T0 - 1] || 0, x2 = c[T0], x3 = c[T0 + 1] || 0;
+      const a = (x1 + x3 - 2 * x2) / 2;
+      const b = (x3 - x1) / 2;
+      if (a) T0 = T0 - b / (2 * a);
+
+      const freq = sampleRate / T0;
+      // Rajataan ihmisäänen alueelle (65 Hz - 1100 Hz)
+      if (freq < 65 || freq > 1100) return -1;
+      return freq;
+    }
+
+    function freqToNoteInfo(freq) {
+      const midiFloat = 69 + 12 * Math.log2(freq / 440);
+      const midi = Math.round(midiFloat);
+      const cents = Math.round((midiFloat - midi) * 100);
+      const name = NOTE_NAMES[midi % 12];
+      const octave = Math.floor(midi / 12) - 1;
+      return { midi, cents, label: `${name}${octave}`, freq };
+    }
+
+    async function ensureMic() {
+      if (isListening) return true;
+      errorMsg.style.display =
