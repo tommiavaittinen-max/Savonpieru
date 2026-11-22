@@ -584,4 +584,236 @@
 
     async function ensureMic() {
       if (isListening) return true;
-      errorMsg.style.display =
+      errorMsg.style.display = 'none';
+      try {
+        try {
+          micStream = await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+          });
+        } catch {
+          // Varmistus vanhemmille/tiukemmille mobiiliselaimille
+          micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        }
+
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+        const source = audioCtx.createMediaStreamSource(micStream);
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 2048;
+        source.connect(analyser);
+        timeBuffer = new Float32Array(analyser.fftSize);
+
+        isListening = true;
+        micBtn.textContent = 'Pysäytä mikrofoni';
+        micBtn.className = 'btn btn-stop';
+        loop();
+        return true;
+      } catch (err) {
+        errorMsg.textContent = `Mikrofonia ei saatu auki: ${err.message || err.name}. Tarkista selaimen luvat.`;
+        errorMsg.style.display = 'block';
+        return false;
+      }
+    }
+
+    function stopMic() {
+      isListening = false;
+      isCalibrating = false;
+      cancelAnimationFrame(rafId);
+      if (micStream) micStream.getTracks().forEach(t => t.stop());
+      if (audioCtx) { audioCtx.close(); audioCtx = null; }
+      micBtn.textContent = 'Käynnistä mikrofoni';
+      micBtn.className = 'btn btn-primary';
+      noteNameEl.textContent = '—';
+      noteMetaEl.textContent = 'Mikrofoni pysäytetty';
+      liveCentsEl.textContent = '—';
+      liveStabilityEl.textContent = '—';
+    }
+
+    micBtn.addEventListener('click', () => {
+      if (isListening) stopMic();
+      else ensureMic();
+    });
+
+    function loop() {
+      if (!isListening) return;
+      rafId = requestAnimationFrame(loop);
+
+      analyser.getFloatTimeDomainData(timeBuffer);
+      const freq = autoCorrelate(timeBuffer, audioCtx.sampleRate);
+
+      if (freq !== -1) {
+        const info = freqToNoteInfo(freq);
+
+        // Päivitä Live-näkymä
+        noteNameEl.textContent = info.label;
+        noteMetaEl.textContent = `${freq.toFixed(1)} Hz`;
+
+        const clampedCents = Math.max(-50, Math.min(50, info.cents));
+        const pct = 50 + clampedCents; // 0..100%
+        tunerNeedle.style.left = `${pct}%`;
+
+        const absCents = Math.abs(info.cents);
+        if (absCents <= 15) {
+          tunerNeedle.style.background = 'var(--good)';
+          noteNameEl.style.color = 'var(--good)';
+        } else if (absCents <= 30) {
+          tunerNeedle.style.background = 'var(--warn)';
+          noteNameEl.style.color = 'var(--warn)';
+        } else {
+          tunerNeedle.style.background = 'var(--bad)';
+          noteNameEl.style.color = 'var(--text)';
+        }
+
+        liveCentsEl.textContent = `${info.cents > 0 ? '+' : ''}${info.cents} c`;
+
+        recentCents.push(info.cents);
+        if (recentCents.length > 20) recentCents.shift();
+        if (recentCents.length >= 5) {
+          const mean = recentCents.reduce((a, b) => a + b, 0) / recentCents.length;
+          const variance = recentCents.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / recentCents.length;
+          const std = Math.sqrt(variance);
+          const stabScore = Math.max(0, Math.min(100, Math.round(100 - std * 2.5)));
+          liveStabilityEl.textContent = `${stabScore} %`;
+        }
+
+        // Tallenna kalibrointiin
+        if (isCalibrating) {
+          calibSamples.push(info);
+          calibNoteEl.textContent = info.label;
+        }
+      }
+
+      // Kalibroinnin ajastin
+      if (isCalibrating) {
+        const elapsed = Date.now() - calibStartTime;
+        const left = Math.max(0, (CALIB_DURATION - elapsed) / 1000);
+        calibTimerEl.textContent = `${left.toFixed(1)} s`;
+        calibProgress.style.width = `${Math.min(100, (elapsed / CALIB_DURATION) * 100)}%`;
+
+        if (elapsed > 10000) {
+          calibHint.textContent = "Pidä nyt yksi pitkä, tasainen ääni...";
+        } else if (elapsed > 5000) {
+          calibHint.textContent = "Käy mukavasti korkeammalla äänialallasi...";
+        } else {
+          calibHint.textContent = "Aloita matalalta mukavalta äänialaltasi...";
+        }
+
+        if (elapsed >= CALIB_DURATION) {
+          finishCalibration();
+        }
+      }
+    }
+
+    async function startCalibration() {
+      const ok = await ensureMic();
+      if (!ok) return;
+      calibSamples = [];
+      isCalibrating = true;
+      calibStartTime = Date.now();
+      calibIntro.classList.add('hidden');
+      calibReport.classList.add('hidden');
+      calibActive.classList.remove('hidden');
+    }
+
+    startCalibBtn.addEventListener('click', startCalibration);
+    reCalibBtn.addEventListener('click', startCalibration);
+
+    function midiToLabel(midi) {
+      return `${NOTE_NAMES[midi % 12]}${Math.floor(midi / 12) - 1}`;
+    }
+
+    function finishCalibration() {
+      isCalibrating = false;
+      calibActive.classList.add('hidden');
+
+      if (calibSamples.length < 25) {
+        calibIntro.classList.remove('hidden');
+        alert("Ääntä ei tallentunut tarpeeksi. Kokeile laulaa hieman lähempänä mikrofonia.");
+        return;
+      }
+
+      // Poistetaan ääripäiden satunnaiset häiriöpiikit (5. ja 95. persentiili)
+      const midis = calibSamples.map(s => s.midi).sort((a, b) => a - b);
+      const lowMidi = midis[Math.floor(midis.length * 0.05)];
+      const highMidi = midis[Math.floor(midis.length * 0.95)];
+      const medianMidi = midis[Math.floor(midis.length * 0.5)];
+
+      // Määritä äänityyppi
+      let voiceType = "Baritoni";
+      if (medianMidi < 47) voiceType = "Basso";
+      else if (medianMidi < 53) voiceType = "Baritoni";
+      else if (medianMidi < 59) voiceType = "Tenori";
+      else if (medianMidi < 64) voiceType = "Altto";
+      else if (medianMidi < 69) voiceType = "Mezzosopraano";
+      else voiceType = "Sopraano";
+
+      // Vireystarkkuus (% näytteistä ±20 sentin sisällä)
+      const inTuneCount = calibSamples.filter(s => Math.abs(s.cents) <= 20).length;
+      const accuracy = Math.round((inTuneCount / calibSamples.length) * 100);
+
+      // Vakaus (peräkkäisten näytteiden senttimuutos saman nuotin aikana)
+      let diffs = [];
+      for (let i = 1; i < calibSamples.length; i++) {
+        if (calibSamples[i].midi === calibSamples[i - 1].midi) {
+          diffs.push(Math.abs(calibSamples[i].cents - calibSamples[i - 1].cents));
+        }
+      }
+      const avgDiff = diffs.length ? diffs.reduce((a, b) => a + b, 0) / diffs.length : 15;
+      const stability = Math.max(20, Math.min(100, Math.round(100 - avgDiff * 3)));
+
+      // Vahvuudet ja kehityskohteet (objektiiviset, innostavat)
+      const strengths = [];
+      const weaknesses = [];
+
+      if (accuracy >= 70) {
+        strengths.push(`Vahva sävelkorva: ${accuracy} % äänistäsi osui puhtaasti nuottiin.`);
+      } else {
+        weaknesses.push(`Vireystarkkuus (${accuracy} %): harjoittele Live-näkymässä referenssiäänien toistamista hitaasti.`);
+      }
+
+      if (stability >= 75) {
+        strengths.push(`Hyvä äänen tuki ja vakaus (${stability} %): äänesi pysyy tasaisena ilman turhaa huojuntaa.`);
+      } else {
+        weaknesses.push(`Äänen vakaus (${stability} %): keskity tasaiseen uloshengitykseen pitkissä vokaaleissa.`);
+      }
+
+      const span = highMidi - lowMidi;
+      if (span >= 12) {
+        strengths.push(`Laaja mukavuusalue (${span} puolisävelaskelta): pystyt laulamaan monipuolisia melodioita.`);
+      } else {
+        weaknesses.push(`Äänialan laajentaminen (${span} puolisävelaskelta): kevyet liu'utukset matalalta korkealle avaavat ylärekisteriä.`);
+      }
+
+      if (strengths.length === 0) {
+        strengths.push("Selkeä ja hyvin tunnistettava perusääni — erinomainen lähtökohta säännölliselle harjoittelulle.");
+      }
+      if (weaknesses.length === 0) {
+        weaknesses.push("Tekninen perusta on vahva! Seuraava askel on dynamiikan (hiljaa vs. kovaa) harjoittelu vireen säilyessä.");
+      }
+
+      // Päivitä raportti
+      document.getElementById('repType').textContent = voiceType;
+      document.getElementById('repRange').textContent = `${midiToLabel(lowMidi)}–${midiToLabel(highMidi)}`;
+      document.getElementById('repAcc').textContent = `${accuracy} %`;
+      document.getElementById('repStab').textContent = `${stability} %`;
+
+      document.getElementById('repStrengths').innerHTML = strengths.map(s => `<li>${s}</li>`).join('');
+      document.getElementById('repWeaknesses').innerHTML = weaknesses.map(w => `<li>${w}</li>`).join('');
+
+      const songs = SONG_DB[voiceType] || SONG_DB["Baritoni"];
+      document.getElementById('repSongs').innerHTML = songs.map(s => `
+        <li class="song-item">
+          <div>
+            <strong>${s.title}</strong>
+            <span class="song-artist">${s.artist}</span>
+          </div>
+          <span class="badge">${s.key}</span>
+        </li>
+      `).join('');
+
+      calibReport.classList.remove('hidden');
+    }
+  </script>
+</body>
+</html>
